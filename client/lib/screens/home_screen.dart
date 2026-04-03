@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/animated_background.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/incoming_request_overlay.dart';
 import '../providers/auth_provider.dart';
+import '../providers/connection_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +33,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Register this device with socket so others can find us online
+    final auth = context.read<AuthProvider>();
+    if (auth.user != null) {
+      context.read<ConnectionProvider>().registerDevice(auth.user!);
+    }
+  }
+
+  @override
   void dispose() {
     _pulseCtrl.dispose();
     super.dispose();
@@ -46,308 +58,345 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final conn = context.watch<ConnectionProvider>();
     final w = MediaQuery.of(context).size.width;
     final isWide = w > 700;
 
     return Scaffold(
-      body: AnimatedBackground(
-        child: SafeArea(
-          child: Column(
-            children: [
-              // ── Top bar ────────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-                    // Logo
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: AppTheme.accent.withOpacity(0.6),
-                            width: 1.5),
-                        color: AppTheme.accentGlow,
-                      ),
-                      child: const Icon(Icons.lan_rounded,
-                          color: AppTheme.accent, size: 18),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'RemoteApp',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: AppTheme.accent,
-                            letterSpacing: 0.8,
+      body: Stack(
+        children: [
+          // ── Main content ────────────────────────────────────
+          AnimatedBackground(
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // ── Top bar ─────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: AppTheme.accent.withOpacity(0.6),
+                                width: 1.5),
+                            color: AppTheme.accentGlow,
                           ),
-                    ),
-                    const Spacer(),
-                    // Avatar / logout
-                    GestureDetector(
-                      onTap: () => _showLogoutDialog(context, auth),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.glassWhite,
-                          border:
-                              Border.all(color: AppTheme.glassBorder, width: 1),
+                          child: const Icon(Icons.lan_rounded,
+                              color: AppTheme.accent, size: 18),
                         ),
-                        child: Center(
-                          child: Text(
-                            auth.fullName.isNotEmpty
-                                ? auth.fullName[0].toUpperCase()
-                                : 'U',
-                            style: const TextStyle(
-                              color: AppTheme.accent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Main content ───────────────────────────────────────────────
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isWide ? (w - 540) / 2 : 20,
-                    vertical: 28,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Greeting
-                      Text(
-                        'Hello, ${auth.fullName.split(' ').first} 👋',
-                        style: Theme.of(context).textTheme.displayMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Your device is online and ready to connect',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 32),
-
-                      // ── Device Code Card ──────────────────────────────────
-                      GlassCard(
-                        borderColor: AppTheme.accent.withOpacity(0.3),
-                        padding: const EdgeInsets.all(28),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                // Online indicator
-                                AnimatedBuilder(
-                                  animation: _pulseCtrl,
-                                  builder: (_, __) => Opacity(
-                                    opacity: _pulseAnim.value,
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: AppTheme.success,
-                                      ),
-                                    ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'RemoteApp',
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: AppTheme.accent,
+                                    letterSpacing: 0.8,
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Your Device Code',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: AppTheme.textSecondary,
-                                        letterSpacing: 1,
-                                      ),
-                                ),
-                                const Spacer(),
-                                // Copy button
-                                GestureDetector(
-                                  onTap: () => _copyCode(auth.deviceCode),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: _codeCopied
-                                          ? AppTheme.success.withOpacity(0.15)
-                                          : AppTheme.accentGlow,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: _codeCopied
-                                            ? AppTheme.success.withOpacity(0.4)
-                                            : AppTheme.accent.withOpacity(0.3),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          _codeCopied
-                                              ? Icons.check_rounded
-                                              : Icons.copy_rounded,
-                                          color: _codeCopied
-                                              ? AppTheme.success
-                                              : AppTheme.accent,
-                                          size: 14,
-                                        ),
-                                        const SizedBox(width: 5),
-                                        Text(
-                                          _codeCopied ? 'Copied!' : 'Copy',
-                                          style: TextStyle(
-                                            color: _codeCopied
-                                                ? AppTheme.success
-                                                : AppTheme.accent,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
+                        ),
+                        const Spacer(),
+                        // Incoming request bell indicator
+                        if (conn.hasIncomingRequest)
+                          Container(
+                            margin: const EdgeInsets.only(right: 10),
+                            child: Stack(
+                              children: [
+                                const Icon(Icons.notifications_rounded,
+                                    color: AppTheme.accent, size: 26),
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    width: 9,
+                                    height: 9,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: AppTheme.error,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 20),
-
-                            // The big code display
-                            Center(
-                              child: _DeviceCodeDisplay(code: auth.deviceCode),
+                          ),
+                        GestureDetector(
+                          onTap: () => _showLogoutDialog(context, auth),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppTheme.glassWhite,
+                              border: Border.all(
+                                  color: AppTheme.glassBorder, width: 1),
                             ),
-                            const SizedBox(height: 16),
-
-                            // Info text
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: AppTheme.glassWhite,
-                                borderRadius: BorderRadius.circular(10),
+                            child: Center(
+                              child: Text(
+                                auth.fullName.isNotEmpty
+                                    ? auth.fullName[0].toUpperCase()
+                                    : 'U',
+                                style: const TextStyle(
+                                  color: AppTheme.accent,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.info_outline_rounded,
-                                      color: AppTheme.textHint, size: 16),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      'Share this code to let others connect to your device',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Scrollable body ──────────────────────────
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isWide ? (w - 540) / 2 : 20,
+                        vertical: 28,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hello, ${auth.fullName.split(' ').first} 👋',
+                            style: Theme.of(context).textTheme.displayMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Your device is online and ready to connect',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 32),
+
+                          // ── Device Code Card ─────────────────
+                          GlassCard(
+                            borderColor: AppTheme.accent.withOpacity(0.3),
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    AnimatedBuilder(
+                                      animation: _pulseCtrl,
+                                      builder: (_, __) => Opacity(
+                                        opacity: _pulseAnim.value,
+                                        child: Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: const BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: AppTheme.success,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Your Device Code',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodyMedium
                                           ?.copyWith(
-                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
                                             color: AppTheme.textSecondary,
+                                            letterSpacing: 1,
                                           ),
                                     ),
+                                    const Spacer(),
+                                    GestureDetector(
+                                      onTap: () => _copyCode(auth.deviceCode),
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: _codeCopied
+                                              ? AppTheme.success
+                                                  .withOpacity(0.15)
+                                              : AppTheme.accentGlow,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: _codeCopied
+                                                ? AppTheme.success
+                                                    .withOpacity(0.4)
+                                                : AppTheme.accent
+                                                    .withOpacity(0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              _codeCopied
+                                                  ? Icons.check_rounded
+                                                  : Icons.copy_rounded,
+                                              color: _codeCopied
+                                                  ? AppTheme.success
+                                                  : AppTheme.accent,
+                                              size: 14,
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              _codeCopied ? 'Copied!' : 'Copy',
+                                              style: TextStyle(
+                                                color: _codeCopied
+                                                    ? AppTheme.success
+                                                    : AppTheme.accent,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                                Center(
+                                  child:
+                                      _DeviceCodeDisplay(code: auth.deviceCode),
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.glassWhite,
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
-                                ],
-                              ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.info_outline_rounded,
+                                          color: AppTheme.textHint, size: 16),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          'Share this code to let others connect to your device',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                fontSize: 12,
+                                                color: AppTheme.textSecondary,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
+                          ),
+                          const SizedBox(height: 24),
 
-                      // ── Quick Actions ─────────────────────────────────────
-                      Text(
-                        'Quick Actions',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      GridView.count(
-                        crossAxisCount: isWide ? 4 : 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        children: const [
-                          _ActionTile(
-                            icon: Icons.computer_rounded,
-                            label: 'Connect',
-                            subtitle: 'Enter device code',
-                            color: AppTheme.accent,
-                            route: '/connect',
+                          // ── Quick Actions ────────────────────
+                          Text(
+                            'Quick Actions',
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          _ActionTile(
-                            icon: Icons.folder_open_rounded,
-                            label: 'Files',
-                            subtitle: 'Transfer files',
-                            color: Color(0xFF4FC3F7),
-                            route: '/files',
+                          const SizedBox(height: 16),
+                          GridView.count(
+                            crossAxisCount: isWide ? 4 : 2,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisSpacing: 14,
+                            mainAxisSpacing: 14,
+                            childAspectRatio: 1.15,
+                            children: const [
+                              _ActionTile(
+                                icon: Icons.computer_rounded,
+                                label: 'Connect',
+                                subtitle: 'Enter device code',
+                                color: AppTheme.accent,
+                                route: '/connect',
+                              ),
+                              _ActionTile(
+                                icon: Icons.folder_open_rounded,
+                                label: 'Files',
+                                subtitle: 'Transfer files',
+                                color: Color(0xFF4FC3F7),
+                                route: '/files',
+                              ),
+                              _ActionTile(
+                                icon: Icons.videocam_rounded,
+                                label: 'Video Call',
+                                subtitle: 'Start a call',
+                                color: Color(0xFF81C784),
+                                route: '/call',
+                              ),
+                              _ActionTile(
+                                icon: Icons.chat_bubble_outline_rounded,
+                                label: 'Messages',
+                                subtitle: 'Send messages',
+                                color: Color(0xFFCE93D8),
+                                route: '/messages',
+                              ),
+                            ],
                           ),
-                          _ActionTile(
-                            icon: Icons.videocam_rounded,
-                            label: 'Video Call',
-                            subtitle: 'Start a call',
-                            color: Color(0xFF81C784),
-                            route: '/call',
-                          ),
-                          _ActionTile(
-                            icon: Icons.chat_bubble_outline_rounded,
-                            label: 'Messages',
-                            subtitle: 'Send messages',
-                            color: Color(0xFFCE93D8),
-                            route: '/messages',
+                          const SizedBox(height: 24),
+
+                          // ── Banner ───────────────────────────
+                          GlassCard(
+                            padding: const EdgeInsets.all(18),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.accentGlow,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.rocket_launch_rounded,
+                                      color: AppTheme.accent, size: 22),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Phase 2 active!',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w600),
+                                      ),
+                                      Text(
+                                        'Connect screen live. More coming soon.',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
-
-                      // ── Coming soon banner ────────────────────────────────
-                      GlassCard(
-                        padding: const EdgeInsets.all(18),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accentGlow,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(Icons.rocket_launch_rounded,
-                                  color: AppTheme.accent, size: 22),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Phase 2 coming soon',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyLarge
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                  Text(
-                                    'Remote control, screen sharing & more',
-                                    style:
-                                        Theme.of(context).textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+
+          // ── Incoming request overlay ──────────────────────────
+          // Only inserted into widget tree when there is an active request
+          // so it NEVER intercepts touches when idle
+          if (conn.hasIncomingRequest)
+            Positioned.fill(
+              child: IncomingRequestOverlay(),
+            ),
+        ],
       ),
     );
   }
@@ -375,8 +424,10 @@ class _HomeScreenState extends State<HomeScreen>
             onPressed: () async {
               Navigator.pop(context);
               await auth.logout();
-              if (context.mounted)
+              if (context.mounted) {
+                context.read<ConnectionProvider>().fullReset();
                 Navigator.pushReplacementNamed(context, '/login');
+              }
             },
             child:
                 const Text('Sign out', style: TextStyle(color: AppTheme.error)),
@@ -389,7 +440,7 @@ class _HomeScreenState extends State<HomeScreen>
 
 // ── Device code display ───────────────────────────────────────────────────────
 class _DeviceCodeDisplay extends StatelessWidget {
-  final String code; // format: XXXX-XXXX-XXXX
+  final String code;
   const _DeviceCodeDisplay({required this.code});
 
   @override
@@ -459,45 +510,73 @@ class _ActionTile extends StatelessWidget {
     required this.route,
   });
 
+  static const _liveRoutes = {'/connect'};
+
   @override
   Widget build(BuildContext context) {
+    final isLive = _liveRoutes.contains(route);
     return GestureDetector(
       onTap: () {
-        // Routes will be wired in Phase 2
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$label — Coming in Phase 2'),
-            backgroundColor: AppTheme.bgCard,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
+        if (isLive) {
+          Navigator.pushNamed(context, route);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$label — Coming soon'),
+              backgroundColor: AppTheme.bgCard,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
       },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
-            color: AppTheme.glassWhite,
+            color: isLive ? color.withOpacity(0.08) : AppTheme.glassWhite,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.glassBorder, width: 1),
+            border: Border.all(
+              color: isLive ? color.withOpacity(0.25) : AppTheme.glassBorder,
+              width: 1,
+            ),
           ),
           padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 22),
+              Stack(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: color, size: 22),
+                  ),
+                  if (isLive)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.success,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const Spacer(),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppTheme.textPrimary,
                   fontSize: 15,
@@ -507,6 +586,8 @@ class _ActionTile extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 12,

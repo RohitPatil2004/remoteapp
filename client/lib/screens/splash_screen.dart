@@ -181,7 +181,7 @@ class _LogoMark extends StatelessWidget {
         ),
         border: Border.all(color: AppTheme.accent.withOpacity(0.6), width: 1.5),
       ),
-      child: Center(
+      child: const Center(
         child: Icon(Icons.lan_rounded, size: 42, color: AppTheme.accent),
       ),
     );

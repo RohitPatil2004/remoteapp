@@ -114,10 +114,12 @@ class _LoginScreenState extends State<LoginScreen>
                                     color: AppTheme.textHint, size: 20),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Enter your email';
-                                if (!v.contains('@'))
+                                }
+                                if (!v.contains('@')) {
                                   return 'Enter a valid email';
+                                }
                                 return null;
                               },
                             ),
@@ -148,8 +150,9 @@ class _LoginScreenState extends State<LoginScreen>
                                 ),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Enter your password';
+                                }
                                 return null;
                               },
                               onFieldSubmitted: (_) => _submit(),

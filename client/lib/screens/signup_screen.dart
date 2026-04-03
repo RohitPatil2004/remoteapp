@@ -54,9 +54,9 @@ class _SignupScreenState extends State<SignupScreen>
     if (p.contains(RegExp(r'[0-9]'))) s += 0.25;
     if (p.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) s += 0.25;
 
-    if (s <= 0.25)
+    if (s <= 0.25) {
       hint = 'Weak';
-    else if (s <= 0.5)
+    } else if (s <= 0.5)
       hint = 'Fair';
     else if (s <= 0.75)
       hint = 'Good';
@@ -160,10 +160,12 @@ class _SignupScreenState extends State<SignupScreen>
                                     color: AppTheme.textHint, size: 20),
                               ),
                               validator: (v) {
-                                if (v == null || v.trim().isEmpty)
+                                if (v == null || v.trim().isEmpty) {
                                   return 'Enter your name';
-                                if (v.trim().length < 2)
+                                }
+                                if (v.trim().length < 2) {
                                   return 'Name too short';
+                                }
                                 return null;
                               },
                             ),
@@ -181,8 +183,9 @@ class _SignupScreenState extends State<SignupScreen>
                                     color: AppTheme.textHint, size: 20),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Enter your email';
+                                }
                                 if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$')
                                     .hasMatch(v)) {
                                   return 'Enter a valid email';
@@ -217,10 +220,12 @@ class _SignupScreenState extends State<SignupScreen>
                                 ),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Enter a password';
-                                if (v.length < 8)
+                                }
+                                if (v.length < 8) {
                                   return 'At least 8 characters required';
+                                }
                                 return null;
                               },
                             ),
@@ -281,10 +286,12 @@ class _SignupScreenState extends State<SignupScreen>
                                 ),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Confirm your password';
-                                if (v != _passCtrl.text)
+                                }
+                                if (v != _passCtrl.text) {
                                   return 'Passwords do not match';
+                                }
                                 return null;
                               },
                             ),

@@ -2,16 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
+import 'providers/connection_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/connect_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ConnectionProvider()),
+      ],
       child: const RemoteApp(),
     ),
   );
@@ -32,8 +37,9 @@ class RemoteApp extends StatelessWidget {
         '/login': (_) => const LoginScreen(),
         '/signup': (_) => const SignupScreen(),
         '/home': (_) => const HomeScreen(),
-        // Phase 2 routes (added later):
-        // '/connect':  (_) => const ConnectScreen(),
+        '/connect': (_) => const ConnectScreen(),
+        // Phase 2b+ (coming soon):
+        // '/session':  (_) => const SessionScreen(),
         // '/files':    (_) => const FileTransferScreen(),
         // '/call':     (_) => const VideoCallScreen(),
         // '/messages': (_) => const MessagesScreen(),

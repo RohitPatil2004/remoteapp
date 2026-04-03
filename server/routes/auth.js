@@ -1,5 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const router = express.Router();
 
 const { getDB } = require('../database/db');
@@ -13,15 +13,12 @@ const SALT_ROUNDS = 12;
 router.post('/signup', async (req, res) => {
   const { full_name, email, password } = req.body;
 
-  // Basic validation
   if (!full_name || !email || !password) {
     return res.status(400).json({ success: false, message: 'All fields are required' });
   }
-
   if (password.length < 8) {
     return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
   }
-
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ success: false, message: 'Invalid email format' });
@@ -29,31 +26,21 @@ router.post('/signup', async (req, res) => {
 
   try {
     const db = getDB();
-
-    // Check if email already exists
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase());
     if (existing) {
       return res.status(409).json({ success: false, message: 'Email already registered' });
     }
-
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
-    // Generate unique 12-digit device code
     const deviceCode = await generateUniqueDeviceCode();
 
-    // Insert user
-    const insert = db.prepare(`
+    const result = db.prepare(`
       INSERT INTO users (full_name, email, password, device_code)
       VALUES (?, ?, ?, ?)
-    `);
-    const result = insert.run(full_name.trim(), email.toLowerCase(), hashedPassword, deviceCode);
+    `).run(full_name.trim(), email.toLowerCase(), hashedPassword, deviceCode);
 
-    // Generate JWT
     const token = generateToken({ id: result.lastInsertRowid, email: email.toLowerCase() });
     const tokenHash = hashToken(token);
 
-    // Save session
     db.prepare(`
       INSERT INTO sessions (user_id, token_hash, device_info, ip_address, expires_at)
       VALUES (?, ?, ?, ?, ?)
@@ -75,7 +62,6 @@ router.post('/signup', async (req, res) => {
           full_name: full_name.trim(),
           email: email.toLowerCase(),
           device_code: deviceCode,
-          // Formatted for display: XXXX-XXXX-XXXX
           device_code_display: `${deviceCode.slice(0,4)}-${deviceCode.slice(4,8)}-${deviceCode.slice(8,12)}`
         }
       }
@@ -102,7 +88,6 @@ router.post('/login', async (req, res) => {
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
-
     if (!user.is_active) {
       return res.status(403).json({ success: false, message: 'Account deactivated' });
     }
@@ -112,17 +97,15 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
-    // Update last login
-    db.prepare('UPDATE users SET last_login = datetime("now") WHERE id = ?').run(user.id);
+    // ✅ Fixed: single quotes around 'now' for SQLite
+    db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
 
-    // Generate JWT
     const token = generateToken({ id: user.id, email: user.email });
     const tokenHash = hashToken(token);
 
-    // Invalidate old sessions (optional: keep only latest)
+    // Invalidate old sessions
     db.prepare('UPDATE sessions SET is_active = 0 WHERE user_id = ?').run(user.id);
 
-    // Save new session
     db.prepare(`
       INSERT INTO sessions (user_id, token_hash, device_info, ip_address, expires_at)
       VALUES (?, ?, ?, ?, ?)
@@ -167,11 +150,13 @@ router.post('/logout', authMiddleware, (req, res) => {
   }
 });
 
-// ─── GET CURRENT USER (me) ────────────────────────────────────────────────────
+// ─── GET CURRENT USER ─────────────────────────────────────────────────────────
 router.get('/me', authMiddleware, (req, res) => {
   try {
     const db = getDB();
-    const user = db.prepare('SELECT id, full_name, email, device_code, created_at, last_login FROM users WHERE id = ?').get(req.user.id);
+    const user = db.prepare(
+      'SELECT id, full_name, email, device_code, created_at, last_login FROM users WHERE id = ?'
+    ).get(req.user.id);
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
