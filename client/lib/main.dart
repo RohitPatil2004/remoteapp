@@ -8,6 +8,9 @@ import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/connect_screen.dart';
+import 'screens/video_call_screen.dart';
+import 'screens/file_transfer_screen.dart';
+import 'screens/messages_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,11 +41,9 @@ class RemoteApp extends StatelessWidget {
         '/signup': (_) => const SignupScreen(),
         '/home': (_) => const HomeScreen(),
         '/connect': (_) => const ConnectScreen(),
-        // Phase 2b+ (coming soon):
-        // '/session':  (_) => const SessionScreen(),
-        // '/files':    (_) => const FileTransferScreen(),
-        // '/call':     (_) => const VideoCallScreen(),
-        // '/messages': (_) => const MessagesScreen(),
+        '/call': (_) => const VideoCallScreen(),
+        '/files': (_) => const FileTransferScreen(),
+        '/messages': (_) => const MessagesScreen(),
       },
     );
   }

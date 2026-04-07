@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/socket_service.dart';
 import '../services/api_service.dart';
 
-// ── Initiator connection status ───────────────────────────────────────────────
 enum ConnectionStatus {
   idle,
   looking,
@@ -14,13 +13,11 @@ enum ConnectionStatus {
   error,
 }
 
-// ── Incoming request model (receiver side) ────────────────────────────────────
 class IncomingRequest {
   final String initiatorCode;
   final String initiatorName;
   final String initiatorSocketId;
   final String timestamp;
-
   IncomingRequest({
     required this.initiatorCode,
     required this.initiatorName,
@@ -29,8 +26,22 @@ class IncomingRequest {
   });
 }
 
+// Active session — set once connection is fully established
+class ActiveSession {
+  final String peerName;
+  final String peerCode;
+  final String peerSocketId;
+  final DateTime connectedAt;
+  ActiveSession({
+    required this.peerName,
+    required this.peerCode,
+    required this.peerSocketId,
+    required this.connectedAt,
+  });
+}
+
 class ConnectionProvider extends ChangeNotifier {
-  // ── Initiator state ───────────────────────────────────────────────────────
+  // ── Initiator state ───────────────────────────────────────
   ConnectionStatus _status = ConnectionStatus.idle;
   Map<String, dynamic>? _targetDevice;
   String? _errorMessage;
@@ -49,24 +60,27 @@ class ConnectionProvider extends ChangeNotifier {
   bool get isRejected => _status == ConnectionStatus.rejected;
   bool get isOffline => _status == ConnectionStatus.offline;
 
-  // ── Receiver state ────────────────────────────────────────────────────────
+  // ── Receiver state ────────────────────────────────────────
   IncomingRequest? _incomingRequest;
   bool _isRegistered = false;
 
   IncomingRequest? get incomingRequest => _incomingRequest;
   bool get hasIncomingRequest => _incomingRequest != null;
 
+  // ── Active session (both sides) ───────────────────────────
+  ActiveSession? _activeSession;
+  ActiveSession? get activeSession => _activeSession;
+  bool get hasActiveSession => _activeSession != null;
+
   void _setStatus(ConnectionStatus s) {
     _status = s;
     notifyListeners();
   }
 
-  // ── Register device with socket ───────────────────────────────────────────
+  // ── Register device ───────────────────────────────────────
   void registerDevice(Map<String, dynamic> user) {
     if (_isRegistered) return;
-
     SocketService.connect();
-
     Future.delayed(const Duration(milliseconds: 800), () {
       SocketService.registerDevice(
         deviceCode: user['device_code'],
@@ -75,26 +89,20 @@ class ConnectionProvider extends ChangeNotifier {
       );
       _isRegistered = true;
     });
-
     _listenForAllEvents();
   }
 
-  // ── Look up target device ─────────────────────────────────────────────────
+  // ── Look up target device ─────────────────────────────────
   Future<void> lookupDevice(String code) async {
     _setStatus(ConnectionStatus.looking);
     _errorMessage = null;
     _targetDevice = null;
-
     try {
       final res = await ApiService.lookupDevice(code);
       if (res['success'] == true) {
         _targetDevice = res['data'];
-        // Default offline until socket confirms
         _targetDevice!['is_online'] = false;
-
-        // Check live online status via socket
         SocketService.checkDeviceOnline(code.replaceAll('-', ''));
-
         _setStatus(ConnectionStatus.found);
       } else {
         _errorMessage = res['message'] ?? 'Device not found';
@@ -106,23 +114,19 @@ class ConnectionProvider extends ChangeNotifier {
     }
   }
 
-  // ── Send permission request ───────────────────────────────────────────────
-  void sendRequest({
-    required String initiatorCode,
-    required String initiatorName,
-  }) {
+  // ── Send permission request ───────────────────────────────
+  void sendRequest(
+      {required String initiatorCode, required String initiatorName}) {
     if (_targetDevice == null) return;
-
     SocketService.sendConnectionRequest(
       targetCode: _targetDevice!['device_code'],
       initiatorCode: initiatorCode,
       initiatorName: initiatorName,
     );
-
     _setStatus(ConnectionStatus.requesting);
   }
 
-  // ── Cancel pending request ────────────────────────────────────────────────
+  // ── Cancel request ────────────────────────────────────────
   void cancelRequest(String initiatorCode) {
     if (_targetDevice == null) return;
     SocketService.cancelConnectionRequest(
@@ -132,41 +136,48 @@ class ConnectionProvider extends ChangeNotifier {
     reset();
   }
 
-  // ── Receiver: accept incoming request ────────────────────────────────────
+  // ── Accept incoming request (receiver) ───────────────────
   void acceptRequest(String myDeviceCode) {
     if (_incomingRequest == null) return;
-
+    final req = _incomingRequest!;
     SocketService.respondToConnection(
-      initiatorSocketId: _incomingRequest!.initiatorSocketId,
-      initiatorCode: _incomingRequest!.initiatorCode,
+      initiatorSocketId: req.initiatorSocketId,
+      initiatorCode: req.initiatorCode,
       targetCode: myDeviceCode,
       accepted: true,
     );
-
+    // Set active session on receiver side
+    _activeSession = ActiveSession(
+      peerName: req.initiatorName,
+      peerCode: req.initiatorCode,
+      peerSocketId: req.initiatorSocketId,
+      connectedAt: DateTime.now(),
+    );
     _incomingRequest = null;
     notifyListeners();
   }
 
-  // ── Receiver: reject incoming request ────────────────────────────────────
+  // ── Reject incoming request (receiver) ───────────────────
   void rejectRequest(String myDeviceCode) {
     if (_incomingRequest == null) return;
-
     SocketService.respondToConnection(
       initiatorSocketId: _incomingRequest!.initiatorSocketId,
       initiatorCode: _incomingRequest!.initiatorCode,
       targetCode: myDeviceCode,
       accepted: false,
     );
-
     _incomingRequest = null;
     notifyListeners();
   }
 
-  // ── Listen for ALL socket events (both sides) ─────────────────────────────
-  void _listenForAllEvents() {
-    // ── INITIATOR events ──────────────────────────────────────
+  // ── Disconnect active session ─────────────────────────────
+  void disconnectSession() {
+    _activeSession = null;
+    reset();
+  }
 
-    // Device online status response
+  // ── All socket events ─────────────────────────────────────
+  void _listenForAllEvents() {
     SocketService.on('device:online_status', (data) {
       if (_targetDevice != null) {
         final code = (data['deviceCode'] ?? '').toString();
@@ -178,32 +189,31 @@ class ConnectionProvider extends ChangeNotifier {
       }
     });
 
-    // Request sent confirmation
-    SocketService.on('connection:request_sent', (data) {
-      notifyListeners();
-    });
+    SocketService.on('connection:request_sent', (_) => notifyListeners());
 
-    // Target is offline
-    SocketService.on('connection:target_offline', (data) {
+    SocketService.on('connection:target_offline', (_) {
       _errorMessage = 'This device is currently offline.';
       _setStatus(ConnectionStatus.offline);
     });
 
-    // Target accepted our request
+    // Initiator: target accepted → set active session
     SocketService.on('connection:accepted', (data) {
       _connectedTargetSocketId = data['targetSocketId']?.toString();
+      _activeSession = ActiveSession(
+        peerName: _targetDevice?['owner_name'] ?? 'Unknown',
+        peerCode: _targetDevice?['device_code'] ?? '',
+        peerSocketId: _connectedTargetSocketId ?? '',
+        connectedAt: DateTime.now(),
+      );
       _setStatus(ConnectionStatus.accepted);
     });
 
-    // Target rejected our request
     SocketService.on('connection:rejected', (data) {
       _errorMessage = data['message']?.toString() ?? 'Connection was declined.';
       _setStatus(ConnectionStatus.rejected);
     });
 
-    // ── RECEIVER events ───────────────────────────────────────
-
-    // Someone is requesting to connect to us
+    // Receiver: incoming request
     SocketService.on('connection:incoming', (data) {
       _incomingRequest = IncomingRequest(
         initiatorCode: data['initiatorCode']?.toString() ?? '',
@@ -214,19 +224,30 @@ class ConnectionProvider extends ChangeNotifier {
       notifyListeners();
     });
 
-    // Initiator cancelled their request before we responded
-    SocketService.on('connection:cancelled', (data) {
+    SocketService.on('connection:cancelled', (_) {
       _incomingRequest = null;
       notifyListeners();
     });
 
-    // We accepted — connection is now live on our end
     SocketService.on('connection:live', (data) {
       notifyListeners();
     });
+
+    // WebRTC signaling for video call
+    SocketService.on('webrtc:offer', (data) => _onWebRTCEvent('offer', data));
+    SocketService.on('webrtc:answer', (data) => _onWebRTCEvent('answer', data));
+    SocketService.on(
+        'webrtc:candidate', (data) => _onWebRTCEvent('candidate', data));
   }
 
-  // ── Reset initiator state ─────────────────────────────────────────────────
+  // WebRTC event callbacks (set by VideoCallScreen)
+  Function(String type, Map<String, dynamic> data)? onWebRTCEvent;
+
+  void _onWebRTCEvent(String type, Map<String, dynamic> data) {
+    onWebRTCEvent?.call(type, data);
+  }
+
+  // ── Reset ─────────────────────────────────────────────────
   void reset() {
     _status = ConnectionStatus.idle;
     _targetDevice = null;
@@ -235,10 +256,10 @@ class ConnectionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Full cleanup on logout ────────────────────────────────────────────────
   void fullReset() {
     reset();
     _incomingRequest = null;
+    _activeSession = null;
     _isRegistered = false;
     notifyListeners();
   }

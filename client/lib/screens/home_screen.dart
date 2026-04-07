@@ -24,10 +24,9 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    _pulseCtrl =
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
+          ..repeat(reverse: true);
     _pulseAnim = Tween(begin: 0.6, end: 1.0)
         .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
   }
@@ -35,7 +34,6 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Register this device with socket so others can find us online
     final auth = context.read<AuthProvider>();
     if (auth.user != null) {
       context.read<ConnectionProvider>().registerDevice(auth.user!);
@@ -65,12 +63,11 @@ class _HomeScreenState extends State<HomeScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // ── Main content ────────────────────────────────────
           AnimatedBackground(
             child: SafeArea(
               child: Column(
                 children: [
-                  // ── Top bar ─────────────────────────────────
+                  // ── Top bar ──────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                     child: Row(
@@ -91,14 +88,13 @@ class _HomeScreenState extends State<HomeScreen>
                         const SizedBox(width: 10),
                         Text(
                           'RemoteApp',
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: AppTheme.accent,
-                                    letterSpacing: 0.8,
-                                  ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(
+                                  color: AppTheme.accent, letterSpacing: 0.8),
                         ),
                         const Spacer(),
-                        // Incoming request bell indicator
                         if (conn.hasIncomingRequest)
                           Container(
                             margin: const EdgeInsets.only(right: 10),
@@ -113,16 +109,15 @@ class _HomeScreenState extends State<HomeScreen>
                                     width: 9,
                                     height: 9,
                                     decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppTheme.error,
-                                    ),
+                                        shape: BoxShape.circle,
+                                        color: AppTheme.error),
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         GestureDetector(
-                          onTap: () => _showLogoutDialog(context, auth),
+                          onTap: () => _showLogoutDialog(context, auth, conn),
                           child: Container(
                             width: 38,
                             height: 38,
@@ -138,9 +133,8 @@ class _HomeScreenState extends State<HomeScreen>
                                     ? auth.fullName[0].toUpperCase()
                                     : 'U',
                                 style: const TextStyle(
-                                  color: AppTheme.accent,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                                    color: AppTheme.accent,
+                                    fontWeight: FontWeight.w700),
                               ),
                             ),
                           ),
@@ -149,7 +143,6 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
 
-                  // ── Scrollable body ──────────────────────────
                   Expanded(
                     child: SingleChildScrollView(
                       padding: EdgeInsets.symmetric(
@@ -168,9 +161,18 @@ class _HomeScreenState extends State<HomeScreen>
                             'Your device is online and ready to connect',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 24),
 
-                          // ── Device Code Card ─────────────────
+                          // ── Active session banner ──────────────
+                          if (conn.hasActiveSession) ...[
+                            _ActiveSessionBanner(
+                              session: conn.activeSession!,
+                              onDisconnect: () => conn.disconnectSession(),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // ── Device Code Card ───────────────────
                           GlassCard(
                             borderColor: AppTheme.accent.withOpacity(0.3),
                             padding: const EdgeInsets.all(28),
@@ -187,9 +189,8 @@ class _HomeScreenState extends State<HomeScreen>
                                           width: 8,
                                           height: 8,
                                           decoration: const BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: AppTheme.success,
-                                          ),
+                                              shape: BoxShape.circle,
+                                              color: AppTheme.success),
                                         ),
                                       ),
                                     ),
@@ -294,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                           const SizedBox(height: 24),
 
-                          // ── Quick Actions ────────────────────
+                          // ── Quick Actions ──────────────────────
                           Text(
                             'Quick Actions',
                             style: Theme.of(context).textTheme.titleLarge,
@@ -307,40 +308,46 @@ class _HomeScreenState extends State<HomeScreen>
                             crossAxisSpacing: 14,
                             mainAxisSpacing: 14,
                             childAspectRatio: 1.15,
-                            children: const [
+                            children: [
                               _ActionTile(
                                 icon: Icons.computer_rounded,
                                 label: 'Connect',
                                 subtitle: 'Enter device code',
                                 color: AppTheme.accent,
                                 route: '/connect',
+                                isLive: true,
                               ),
                               _ActionTile(
                                 icon: Icons.folder_open_rounded,
                                 label: 'Files',
                                 subtitle: 'Transfer files',
-                                color: Color(0xFF4FC3F7),
+                                color: const Color(0xFF4FC3F7),
                                 route: '/files',
+                                isLive: true,
                               ),
                               _ActionTile(
                                 icon: Icons.videocam_rounded,
                                 label: 'Video Call',
-                                subtitle: 'Start a call',
-                                color: Color(0xFF81C784),
+                                subtitle: conn.hasActiveSession
+                                    ? conn.activeSession!.peerName
+                                    : 'Start a call',
+                                color: const Color(0xFF81C784),
                                 route: '/call',
+                                isLive: true,
                               ),
                               _ActionTile(
                                 icon: Icons.chat_bubble_outline_rounded,
                                 label: 'Messages',
                                 subtitle: 'Send messages',
-                                color: Color(0xFFCE93D8),
+                                color: const Color(0xFFCE93D8),
                                 route: '/messages',
+                                isLive: true,
                               ),
                             ],
                           ),
                           const SizedBox(height: 24),
 
-                          // ── Banner ───────────────────────────
+                          // ── Phase banner ───────────────────────
                           GlassCard(
                             padding: const EdgeInsets.all(18),
                             child: Row(
@@ -369,7 +376,7 @@ class _HomeScreenState extends State<HomeScreen>
                                                 fontWeight: FontWeight.w600),
                                       ),
                                       Text(
-                                        'Connect screen live. More coming soon.',
+                                        'Video call, files & messages now open.',
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodyMedium,
@@ -389,9 +396,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
-          // ── Incoming request overlay ──────────────────────────
-          // Only inserted into widget tree when there is an active request
-          // so it NEVER intercepts touches when idle
+          // ── Incoming request overlay ───────────────────────
           if (conn.hasIncomingRequest)
             Positioned.fill(
               child: IncomingRequestOverlay(),
@@ -401,7 +406,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _showLogoutDialog(BuildContext context, AuthProvider auth) {
+  void _showLogoutDialog(
+      BuildContext context, AuthProvider auth, ConnectionProvider conn) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -425,7 +431,7 @@ class _HomeScreenState extends State<HomeScreen>
               Navigator.pop(context);
               await auth.logout();
               if (context.mounted) {
-                context.read<ConnectionProvider>().fullReset();
+                conn.fullReset();
                 Navigator.pushReplacementNamed(context, '/login');
               }
             },
@@ -435,6 +441,120 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
     );
+  }
+}
+
+// ── Active session banner ─────────────────────────────────────────────────────
+class _ActiveSessionBanner extends StatelessWidget {
+  final ActiveSession session;
+  final VoidCallback onDisconnect;
+
+  const _ActiveSessionBanner({
+    required this.session,
+    required this.onDisconnect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppTheme.success.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.success.withOpacity(0.35), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.success.withOpacity(0.15),
+              border: Border.all(
+                  color: AppTheme.success.withOpacity(0.4), width: 1),
+            ),
+            child: Center(
+              child: Text(
+                session.peerName[0].toUpperCase(),
+                style: const TextStyle(
+                    color: AppTheme.success,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                          shape: BoxShape.circle, color: AppTheme.success),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Connected',
+                      style: TextStyle(
+                          color: AppTheme.success,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  session.peerName,
+                  style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  _formatCode(session.peerCode),
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      letterSpacing: 1.5),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: onDisconnect,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: AppTheme.error.withOpacity(0.3), width: 1),
+              ),
+              child: const Text(
+                'Disconnect',
+                style: TextStyle(
+                    color: AppTheme.error,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCode(String raw) {
+    final c = raw.replaceAll('-', '');
+    if (c.length != 12) return raw;
+    return '${c.substring(0, 4)}-${c.substring(4, 8)}-${c.substring(8, 12)}';
   }
 }
 
@@ -457,10 +577,9 @@ class _DeviceCodeDisplay extends StatelessWidget {
               child: Text(
                 '—',
                 style: TextStyle(
-                  color: AppTheme.accent.withOpacity(0.4),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w300,
-                ),
+                    color: AppTheme.accent.withOpacity(0.4),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w300),
               ),
             ),
         ],
@@ -485,12 +604,11 @@ class _CodeBlock extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(
-          color: AppTheme.accent,
-          fontSize: 24,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 4,
-          fontFamily: 'monospace',
-        ),
+            color: AppTheme.accent,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 4,
+            fontFamily: 'monospace'),
       ),
     );
   }
@@ -501,6 +619,7 @@ class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label, subtitle, route;
   final Color color;
+  final bool isLive;
 
   const _ActionTile({
     required this.icon,
@@ -508,34 +627,18 @@ class _ActionTile extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.route,
+    this.isLive = false,
   });
-
-  static const _liveRoutes = {'/connect'};
 
   @override
   Widget build(BuildContext context) {
-    final isLive = _liveRoutes.contains(route);
     return GestureDetector(
-      onTap: () {
-        if (isLive) {
-          Navigator.pushNamed(context, route);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$label — Coming soon'),
-              backgroundColor: AppTheme.bgCard,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-          );
-        }
-      },
+      onTap: () => Navigator.pushNamed(context, route),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
-            color: isLive ? color.withOpacity(0.08) : AppTheme.glassWhite,
+            color: isLive ? color.withOpacity(0.07) : AppTheme.glassWhite,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isLive ? color.withOpacity(0.25) : AppTheme.glassBorder,
@@ -565,9 +668,7 @@ class _ActionTile extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.success,
-                        ),
+                            shape: BoxShape.circle, color: AppTheme.success),
                       ),
                     ),
                 ],
@@ -578,10 +679,9 @@ class _ActionTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+                    color: AppTheme.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 2),
               Text(
@@ -589,9 +689,7 @@ class _ActionTile extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12,
-                ),
+                    color: AppTheme.textSecondary, fontSize: 12),
               ),
             ],
           ),

@@ -14,13 +14,16 @@ dependencies:
   http: ^1.2.0
   dio: ^5.4.0
 
-  # Real-time (Phase 2)
+  # Real-time
   socket_io_client: ^2.0.3+1
+
+  # WebRTC — video call
+  flutter_webrtc: ^1.4.1
 
   # State management
   provider: ^6.1.2
 
-  # Secure storage (for JWT token)
+  # Secure storage
   flutter_secure_storage: ^9.0.0
 
   # UI
